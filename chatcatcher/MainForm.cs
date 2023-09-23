@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Net.Http;
 using TwitchLib.Api;
 using TwitchLib.Api.Core;
 using TwitchLib.Api.Core.Enums;
@@ -12,7 +13,10 @@ using TwitchLib.Api.Core.Exceptions;
 using TwitchLib.Api.Helix.Models.Users;
 using TwitchLib.Api.Interfaces;
 using TwitchLib.Api.Services;
+using TwitchLib.Api.Services.Events.LiveStreamMonitor;
+
 using static System.Formats.Asn1.AsnWriter;
+using Newtonsoft.Json.Linq;
 
 namespace chatcatcher
 {
@@ -28,6 +32,7 @@ namespace chatcatcher
         private Boolean isConnected = false;
         private String user;
         private String secret;
+        private String oathtoken;
         private String chatname;
         private String path;
         public MainForm()
@@ -73,12 +78,26 @@ namespace chatcatcher
                     try
                     {
                         AppendText("嘗試進行連接" + Environment.NewLine);
+                        //取得Token
+                        oathtoken = await GetTwitchAccessToken();
+                        if (oathtoken == null)
+                        {
+                            AppendText("oathtoken 取得失敗" + Environment.NewLine);
+                        }
+                        else
+                        {
+                            
+                              AppendText("oathtoken:" + oathtoken + Environment.NewLine);
+                            
+                        }
+                        
                         // 開啟聊天室抓取任務
                         // 初始化聊天室连接
-                        Connect(user, secret, chatname);
+                        /*
+                        Connect(user, secret, oathtoken, chatname);
                         chatTask = Task.Run(ReadChatMessages);
                         isConnected = true;
-                        btn.Text = "結束連結";
+                        btn.Text = "結束連結";*/
                     }
                     catch (Exception)
                     {
@@ -105,30 +124,35 @@ namespace chatcatcher
 
 
         }
-        private string GetTwitchAccessToken()
+        private async Task<string> GetTwitchAccessToken()
         {
             string clientId = user;
             string clientSecret = secret;
+            string redirectUri = "http://localhost";
+            string authorizationCode = "";
+            var httpClient = new HttpClient();
 
-            // 建立 Twitch API 實例
-            TwitchAPI twitchApi = new TwitchAPI();
-
-            // 設定 Twitch API 用戶端憑證
-            twitchApi.Settings.ClientId = clientId;
-            twitchApi.Settings.Secret = clientSecret;
-
-            try
+            var requestBody = new FormUrlEncodedContent(new[]
             {
-                // 使用用戶端憑證進行身份驗證
-                //AppAccessToken appAccessToken = twitchApi.Helix.Authentication.GetAppAccessTokenAsync().Result;
+                new KeyValuePair<string, string>("client_id", clientId),
+                new KeyValuePair<string, string>("client_secret", clientSecret),
+                new KeyValuePair<string, string>("grant_type", "authorization_code"),
+                new KeyValuePair<string, string>("code", authorizationCode),
+                new KeyValuePair<string, string>("redirect_uri", redirectUri)
+            });
 
-                // 回傳存取權杖
-                //return appAccessToken.AccessToken;
-                return null;
+            var response = await httpClient.PostAsync("https://id.twitch.tv/oauth2/token", requestBody);
+            var responseContent = await response.Content.ReadAsStringAsync();
+
+            if (response.IsSuccessStatusCode)
+            {
+                // 解析存取權杖
+                String token = JObject.Parse(responseContent)["access_token"]?.ToString();
+                return token;
             }
-            catch (Exception ex)
+            else
             {
-                // 處理例外情況
+                AppendText("發生錯誤: " + responseContent);
                 return null;
             }
         }
@@ -165,14 +189,14 @@ namespace chatcatcher
 
 
         }
-        public void Connect(string username, string accessToken, string channel)
+        public void Connect(string username,string secret, string accessToken, string channel)
         {
             client = new TcpClient(Host, Port);
             reader = new StreamReader(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
             writer = new StreamWriter(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
 
-            // 发送身份验证信息
-            writer.WriteLine("PASS " + accessToken);
+            // 發送身份驗證信息
+            writer.WriteLine("PASS " + secret);
             writer.WriteLine("NICK " + username.ToLower());
             writer.WriteLine("JOIN #" + channel.ToLower());
             writer.Flush();
