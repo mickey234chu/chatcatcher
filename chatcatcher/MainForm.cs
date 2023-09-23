@@ -1,9 +1,18 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using TwitchLib.Api;
+using TwitchLib.Api.Core;
+using TwitchLib.Api.Core.Enums;
+using TwitchLib.Api.Core.Exceptions;
+using TwitchLib.Api.Helix.Models.Users;
+using TwitchLib.Api.Interfaces;
+using TwitchLib.Api.Services;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace chatcatcher
 {
@@ -18,7 +27,7 @@ namespace chatcatcher
         private Task chatTask;
         private Boolean isConnected = false;
         private String user;
-        private String token;
+        private String secret;
         private String chatname;
         private String path;
         public MainForm()
@@ -53,13 +62,31 @@ namespace chatcatcher
         {
             if (!isConnected)
             {
-                AppendText("嘗試進行連接" + Environment.NewLine);
-                // 開啟聊天室抓取任務
-                // 初始化聊天室连接
-                Connect(user, token, chatname);
-                chatTask = Task.Run(ReadChatMessages);
-                isConnected = true;
-                btn.Text = "結束連結";
+                if (user.Length < 1 || chatname.Length < 1)
+                {
+                    AppendText("請確定已載入有效的ID和密碼，按下「選擇連接參數而載入ID和密碼」" + Environment.NewLine);
+
+                }
+                else
+                {
+
+                    try
+                    {
+                        AppendText("嘗試進行連接" + Environment.NewLine);
+                        // 開啟聊天室抓取任務
+                        // 初始化聊天室连接
+                        Connect(user, secret, chatname);
+                        chatTask = Task.Run(ReadChatMessages);
+                        isConnected = true;
+                        btn.Text = "結束連結";
+                    }
+                    catch (Exception)
+                    {
+
+                        throw;
+                    }
+                }
+                
             }
             else
             {
@@ -77,6 +104,33 @@ namespace chatcatcher
             }
 
 
+        }
+        private string GetTwitchAccessToken()
+        {
+            string clientId = user;
+            string clientSecret = secret;
+
+            // 建立 Twitch API 實例
+            TwitchAPI twitchApi = new TwitchAPI();
+
+            // 設定 Twitch API 用戶端憑證
+            twitchApi.Settings.ClientId = clientId;
+            twitchApi.Settings.Secret = clientSecret;
+
+            try
+            {
+                // 使用用戶端憑證進行身份驗證
+                //AppAccessToken appAccessToken = twitchApi.Helix.Authentication.GetAppAccessTokenAsync().Result;
+
+                // 回傳存取權杖
+                //return appAccessToken.AccessToken;
+                return null;
+            }
+            catch (Exception ex)
+            {
+                // 處理例外情況
+                return null;
+            }
         }
         private void btnOpenFile_Click(object sender, EventArgs e)
         {
@@ -99,15 +153,14 @@ namespace chatcatcher
                 ConnectToTwitch(parameters);
                 AppendText("目前套用之參數文件路徑:" + path + Environment.NewLine);
                 AppendText("目前套用內容:" + Environment.NewLine);
-                AppendText("username:" + parameters.Username + Environment.NewLine);
-                AppendText("chatroom:" + parameters.Chatroom + Environment.NewLine);
+                AppendText("你想連接的聊天室為:" + parameters.Chatroom + Environment.NewLine);
             }
         }
         private void ConnectToTwitch(TwitchConnectionParameters parameters)
         {
             // 更新當前要串的資料
             user = parameters.Username;
-            token = parameters.Token;
+            secret = parameters.Secret;
             chatname = parameters.Chatroom;
 
 
@@ -124,6 +177,7 @@ namespace chatcatcher
             writer.WriteLine("JOIN #" + channel.ToLower());
             writer.Flush();
         }
+        
         private async Task ReadChatMessages()
         {
             while (chatTask != null)

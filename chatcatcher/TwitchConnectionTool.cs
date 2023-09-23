@@ -18,7 +18,7 @@ namespace chatcatcher
     public class TwitchConnectionParameters
     {
         public string Username { get; set; }
-        public string Token { get; set; }
+        public string Secret { get; set; }
         public string Chatroom { get; set; }
     }
 }
