@@ -22,6 +22,9 @@ using System.Web;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 using TwitchLib.PubSub.Models.Responses.Messages.AutomodCaughtMessage;
 using System.Reflection.Metadata;
+using TwitchLib.PubSub.Models.Responses;
+using Discord;
+using Discord.WebSocket;
 
 namespace chatcatcher
 {
@@ -33,10 +36,13 @@ namespace chatcatcher
         private TcpClient client;
         private StreamReader reader;
         private StreamWriter writer;
+        private TwitchTool twitchTool;
+        private DiscordTool discordTool;
         private Task chatTask;
         private Boolean isConnected = false;
         private String user;
         private String secret;
+        private String discordsecret;
         private String oathtoken;
         private String chatname;
         private String path;
@@ -82,6 +88,7 @@ namespace chatcatcher
 
                     try
                     {
+                        //Twitch 聊天室連線
                         AppendText("嘗試進行連接" + Environment.NewLine);
                         //取得Token
                         oathtoken = await Oath2Authorize();
@@ -95,12 +102,24 @@ namespace chatcatcher
                               AppendText("token:" + oathtoken + Environment.NewLine);
                             
                         }
-
+                        //實例化使用工具
+                        twitchTool = new TwitchTool();
+                        discordTool = new DiscordTool();
                         // 開啟聊天室抓取任務
-                        // 初始化聊天室连接
-                        AppendText("初始化聊天室连接" + Environment.NewLine);
+                        // 初始化Twitch聊天室連接
+                        AppendText("初始化聊天室連接" + Environment.NewLine);
                         Connect(user, secret, oathtoken, chatname);
                         chatTask = Task.Run(ReadChatMessages);
+
+
+                        // 創建 DiscordSocketClient 
+                        discordTool = new DiscordTool();
+                        await discordTool.StartBot(discordsecret);
+
+                        //////////////////////////////////////////////////////////////////
+                        
+                        
+                        
                         isConnected = true;
                         btn.Text = "結束連結";
                     }
@@ -123,6 +142,7 @@ namespace chatcatcher
                 writer.WriteLine("QUIT");
                 writer.Flush();
                 client.Close();
+                
                 isConnected = false;
                 btn.Text = "開始連結";
             }
@@ -135,7 +155,7 @@ namespace chatcatcher
             string clientId = user;
             string redirectUri = "http://localhost:8080";
             // 以空格分隔的Twitch權限列表
-            string scope = "channel_read channel:read:subscriptions chat:read";
+            string scope = "channel_read channel:read:subscriptions chat:read chat:edit";
             string authorizationUrl = $"https://id.twitch.tv/oauth2/authorize?client_id={clientId}&redirect_uri={redirectUri}&response_type=code&scope={scope}";
             AppendText("authorizationUrl: " + authorizationUrl+ Environment.NewLine);
             // 創建建本地 HTTP server
@@ -223,23 +243,24 @@ namespace chatcatcher
                 // 在此處可以執行其他操作，如更新 UI 或執行其他邏輯
                 // ...
                 // 創建 TwitchConnectionTool 實例
-                TwitchConnectionTool connectionTool = new TwitchConnectionTool();
+                ChatConnectionTool connectionTool = new ChatConnectionTool();
 
                 // 引入 Twitch 連接參數
-                TwitchConnectionParameters parameters = connectionTool.ImportParametersFromJson(path);
-                ConnectToTwitch(parameters);
+                ConnectionParameters parameters = connectionTool.ImportParametersFromJson(path);
+                ConnectVarSetting(parameters);
                 AppendText("目前套用之參數文件路徑:" + path + Environment.NewLine);
                 AppendText("目前套用內容:" + Environment.NewLine);
                 AppendText("你想連接的聊天室為:" + parameters.Chatroom + Environment.NewLine);
             }
         }
-        private void ConnectToTwitch(TwitchConnectionParameters parameters)
+        private void ConnectVarSetting(ConnectionParameters parameters)
         {
             // 更新當前要串的資料
             user = parameters.Username;
             secret = parameters.Secret;
             chatname = parameters.Chatroom;
-
+            discordsecret = parameters.DiscordSecret;
+ 
 
         }
         //無需要secret
@@ -247,16 +268,26 @@ namespace chatcatcher
         {
             client = new TcpClient(Host, Port);
             //reader = new StreamReader(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
-            writer = new StreamWriter(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
+            //writer = new StreamWriter(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
             reader = new StreamReader(client.GetStream(), Encoding.UTF8);
-            //writer = new StreamWriter(client.GetStream(), Encoding.UTF8);
+            writer = new StreamWriter(client.GetStream(), Encoding.UTF8);
             // 發送身份驗證信息
+            writer.WriteLine();
             writer.WriteLine("PASS oauth:" + accessToken);
             writer.WriteLine("NICK " + username.ToLower());
             writer.WriteLine("JOIN #" + channel.ToLower());
             writer.Flush();
+           
         }
-        
+        public string UTF8TOISO (string message) 
+        {
+            Encoding iso = Encoding.GetEncoding("ISO-8859-1");
+            Encoding utf8 = Encoding.UTF8;
+            byte[] utfBytes = utf8.GetBytes(message);
+            byte[] isoBytes = Encoding.Convert(utf8, iso, utfBytes);
+            string msg = iso.GetString(isoBytes);
+            return msg;
+        }
         private async Task ReadChatMessages()
         {
             while (chatTask != null)
@@ -267,7 +298,8 @@ namespace chatcatcher
                     // 分解Message
                     if (message != null)
                     {
-                        if (message.StartsWith(":"))
+                        //一般打印
+                        if (message.Contains("PRIVMSG"))
                         {
                             ProcessChatMessage(message);
                         }
@@ -282,7 +314,7 @@ namespace chatcatcher
                 catch (IOException e)
                 {
                     //關掉就一定會報錯，無視就好
-                    AppendText(e.Message + Environment.NewLine);
+                    //AppendText(e.Message + Environment.NewLine);
                     break;
                 }
             }
