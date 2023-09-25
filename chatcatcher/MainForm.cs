@@ -17,6 +17,11 @@ using TwitchLib.Api.Services.Events.LiveStreamMonitor;
 
 using static System.Formats.Asn1.AsnWriter;
 using Newtonsoft.Json.Linq;
+using System.Net;
+using System.Web;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
+using TwitchLib.PubSub.Models.Responses.Messages.AutomodCaughtMessage;
+using System.Reflection.Metadata;
 
 namespace chatcatcher
 {
@@ -67,7 +72,7 @@ namespace chatcatcher
         {
             if (!isConnected)
             {
-                if (user.Length < 1 || chatname.Length < 1)
+                if (user == null || chatname == null)
                 {
                     AppendText("請確定已載入有效的ID和密碼，按下「選擇連接參數而載入ID和密碼」" + Environment.NewLine);
 
@@ -79,7 +84,7 @@ namespace chatcatcher
                     {
                         AppendText("嘗試進行連接" + Environment.NewLine);
                         //取得Token
-                        oathtoken = await GetTwitchAccessToken();
+                        oathtoken = await Oath2Authorize();
                         if (oathtoken == null)
                         {
                             AppendText("oathtoken 取得失敗" + Environment.NewLine);
@@ -87,17 +92,17 @@ namespace chatcatcher
                         else
                         {
                             
-                              AppendText("oathtoken:" + oathtoken + Environment.NewLine);
+                              AppendText("token:" + oathtoken + Environment.NewLine);
                             
                         }
-                        
+
                         // 開啟聊天室抓取任務
                         // 初始化聊天室连接
-                        /*
+                        AppendText("初始化聊天室连接" + Environment.NewLine);
                         Connect(user, secret, oathtoken, chatname);
                         chatTask = Task.Run(ReadChatMessages);
                         isConnected = true;
-                        btn.Text = "結束連結";*/
+                        btn.Text = "結束連結";
                     }
                     catch (Exception)
                     {
@@ -110,7 +115,7 @@ namespace chatcatcher
             else
             {
                 AppendText("停止連接" + Environment.NewLine);
-
+                
                 // 停止聊天室抓取任務
                 chatTask = null;
 
@@ -124,12 +129,59 @@ namespace chatcatcher
 
 
         }
-        private async Task<string> GetTwitchAccessToken()
+        private async Task<string> Oath2Authorize()
+        {
+
+            string clientId = user;
+            string redirectUri = "http://localhost:8080";
+            // 以空格分隔的Twitch權限列表
+            string scope = "channel_read channel:read:subscriptions chat:read";
+            string authorizationUrl = $"https://id.twitch.tv/oauth2/authorize?client_id={clientId}&redirect_uri={redirectUri}&response_type=code&scope={scope}";
+            AppendText("authorizationUrl: " + authorizationUrl+ Environment.NewLine);
+            // 創建建本地 HTTP server
+            var listener = new HttpListener();
+            listener.Prefixes.Add(redirectUri + "/");
+            listener.Start();
+            //打開瀏覽器進行授權
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = authorizationUrl,
+                UseShellExecute = true
+            });
+
+            // 接收来自 Twitch 的回調請求
+            var context = await listener.GetContextAsync();
+            var request = context.Request;
+            var response = context.Response;
+
+            // 提取授權碼
+            string authorizationCode = HttpUtility.ParseQueryString(request.Url.Query)["code"];
+
+            // 關閉本地 HTTP server
+            listener.Stop();
+            listener.Close();
+            
+            if (authorizationCode != null)
+            {
+                AppendText("Oath2.0授權結果: 成功" + Environment.NewLine);
+                AppendText("已完成Oath2.0授權，開始進行存取權杖" + Environment.NewLine);
+                string token = await GetTwitchAccessToken(authorizationCode);
+                return token;
+            }
+            else
+            {
+                AppendText("Oath2.0授權發生錯誤: " + Environment.NewLine);
+            }
+            
+            return null;
+            
+        }
+        private async Task<string> GetTwitchAccessToken(string OathCode)
         {
             string clientId = user;
             string clientSecret = secret;
-            string redirectUri = "http://localhost";
-            string authorizationCode = "";
+            string redirectUri = "http://localhost:8080";
+            string authorizationCode = OathCode;
             var httpClient = new HttpClient();
 
             var requestBody = new FormUrlEncodedContent(new[]
@@ -147,12 +199,13 @@ namespace chatcatcher
             if (response.IsSuccessStatusCode)
             {
                 // 解析存取權杖
+                AppendText("存取權杖結果: 成功" + Environment.NewLine);
                 String token = JObject.Parse(responseContent)["access_token"]?.ToString();
                 return token;
             }
             else
             {
-                AppendText("發生錯誤: " + responseContent);
+                AppendText("存取權杖發生錯誤: " + responseContent);
                 return null;
             }
         }
@@ -189,14 +242,16 @@ namespace chatcatcher
 
 
         }
+        //無需要secret
         public void Connect(string username,string secret, string accessToken, string channel)
         {
             client = new TcpClient(Host, Port);
-            reader = new StreamReader(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
+            //reader = new StreamReader(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
             writer = new StreamWriter(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
-
+            reader = new StreamReader(client.GetStream(), Encoding.UTF8);
+            //writer = new StreamWriter(client.GetStream(), Encoding.UTF8);
             // 發送身份驗證信息
-            writer.WriteLine("PASS " + secret);
+            writer.WriteLine("PASS oauth:" + accessToken);
             writer.WriteLine("NICK " + username.ToLower());
             writer.WriteLine("JOIN #" + channel.ToLower());
             writer.Flush();
@@ -209,18 +264,46 @@ namespace chatcatcher
                 try
                 {
                     string message = await reader.ReadLineAsync();
+                    // 分解Message
+                    if (message != null)
+                    {
+                        if (message.StartsWith(":"))
+                        {
+                            ProcessChatMessage(message);
+                        }
+                        else
+                        {
+                            AppendText(message + Environment.NewLine);
+                        }
 
-                    // 在文本框中顯示聊天室内容
-                    AppendText(message + Environment.NewLine);
+                    }
+                    
                 }
-                catch (IOException)
+                catch (IOException e)
                 {
-                    // 處理錯誤或失敗
+                    //關掉就一定會報錯，無視就好
+                    AppendText(e.Message + Environment.NewLine);
                     break;
                 }
             }
         }
+        private void ProcessChatMessage(string message)
+        {
+            // 分解message
+            string[] parts = message.Split(' ');
+            if (parts.Length >= 4 && parts[1] == "PRIVMSG")
+            {
+                string username = parts[0].Substring(1, parts[0].IndexOf("!") - 1);
+                string content = string.Join(" ", parts.Skip(3).ToArray()).Substring(1);
+                // 在文本框中顯示聊天室内容
+                AppendText(username + ":" + content + Environment.NewLine);
 
+            }
+            else
+            {
+                AppendText(message + Environment.NewLine);
+            }
+        }
         private void AppendText(string text)
         {
             if (txtChat.InvokeRequired)
