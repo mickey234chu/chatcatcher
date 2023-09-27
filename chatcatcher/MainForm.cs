@@ -35,8 +35,8 @@ namespace chatcatcher
 
         private TcpClient client;
         private StreamReader reader;
-        private StreamWriter writer;
-        private TwitchTool twitchTool;
+        public StreamWriter writer;
+        public TwitchTool twitchTool;
         private DiscordTool discordTool;
         private Task chatTask;
         private Boolean isConnected = false;
@@ -115,7 +115,7 @@ namespace chatcatcher
                         /////////////////////////////////////////////////
 
                         // 創建 DiscordSocketClient 
-                        discordTool = new DiscordTool(this, discordserver, discordchannel); 
+                        discordTool = new DiscordTool(this, discordserver, discordchannel, user, chatname); 
                         //連接Discord Bot
                         isConnected = await discordTool.StartBot(discordsecret);
                         //根據結果進行Window上的修改
