@@ -22,13 +22,13 @@ namespace chatcatcher
         }
         
     }
-    // TODO:把它改成輸出別人的訊息而不是只輸出"中文"
+    
     public class TwitchTool
     {
-        public void SendToTwitch(StreamWriter writer, string user, string chatname)
+        public void SendToTwitch(StreamWriter writer, string user, string chatname,string message)
         {
 
-            writer.WriteLine(string.Format(":{0}!{0}@{0}.tmi.twitch.tv PRIVMSG #{1} :{2}", user, chatname, "中文"));
+            writer.WriteLine(string.Format(":{0}!{0}@{0}.tmi.twitch.tv PRIVMSG #{1} :{2}", user, chatname, message));
             writer.Flush();
 
         }
@@ -39,8 +39,10 @@ namespace chatcatcher
         private MainForm _mainForm;
         private string _serverID;
         private string _chatID;
+        private string _TwitchchatID;
+        private string _TwitchBotname;
         public bool _isConnected;
-        public DiscordTool(MainForm mainForm,string serverID, string channelID)
+        public DiscordTool(MainForm mainForm,string serverID, string channelID,string TwitchBotname, string TwitchchatID)
         {
             _client = new DiscordSocketClient(new DiscordSocketConfig
             {
@@ -50,6 +52,8 @@ namespace chatcatcher
             _mainForm = mainForm;
             _serverID = serverID;
             _chatID = channelID;
+            _TwitchBotname = TwitchBotname;
+            _TwitchchatID = TwitchchatID;
             _client.Log += LogMessage;
             _client.Ready += ReadyEvent;
             _client.MessageReceived += MessageReceivedEvent;
@@ -91,10 +95,22 @@ namespace chatcatcher
                 Trace.WriteLine("ERROR!NO Message, ID :" + _client.Guilds.ToString());
             }
             if (message.Author.Id == _client.CurrentUser.Id)
+            {
                 return;
+            }
+            else
+            {
+                try
+                {
+                    string DCmessage = message.Author.Username.TrimStart('@') + ":" + message.Content;
+                    _mainForm.twitchTool.SendToTwitch(_mainForm.writer, _TwitchBotname, _TwitchchatID, DCmessage);
+                }
+                catch (Exception ex)
+                {
+                    _mainForm.AppendText("傳送到Twitch失敗: " + ex.Message + Environment.NewLine);
+                }
+            }
 
-            if (message.Content == "!hello")
-                await message.Channel.SendMessageAsync("Hello!");
         }
 
         public async Task<bool> StartBot(string token)
@@ -138,7 +154,7 @@ namespace chatcatcher
 
             if (channel != null)
             {
-                string message = $"Twitch用戶{username}:{content}";
+                string message = $"{username}:{content}";
                 await channel.SendMessageAsync(message);
             }
         }
