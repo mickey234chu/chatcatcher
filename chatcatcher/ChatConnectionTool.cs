@@ -14,6 +14,7 @@ namespace chatcatcher
 {
     public class ChatConnectionTool
     {
+
         public ConnectionParameters ImportParametersFromJson(string jsonFilePath)
         {
             string jsonContent = File.ReadAllText(jsonFilePath);
