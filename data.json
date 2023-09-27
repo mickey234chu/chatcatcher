@@ -1,8 +1,8 @@
 {
-	"Username": "b40ui3st7s24550fs77ko8gm9d2qiu",
-	"Secret": "s8higear2ivgwppggvfwawh8vhwagf",
-	"Chatroom": "mickey234chu",
-	"DiscordServerID": "1004975659409485914",
-	"DiscordChannelID": "1004975659409485917",
-	"DiscordSecret": "MTE1NTc5MDkxMjg0NTI3MTA2MA.GhU8KW.hSHz7BVxI94P-XTsyXnS6s5eazIWTTm8hfsW_I"
+  "Username": "Twitch機械人用戶端 ID",
+  "Secret": "Twitch機械人用戶端密碼",
+  "Chatroom": "你要連接的Twitch實況主帳號",
+  "DiscordServerID": "你的Discord Bot所在伺服器ID",
+  "DiscordChannelID": "你的Discord Bot所在頻道ID(要在同一個伺服器下哦)",
+  "DiscordSecret": "你的Discord Bot Token"
 }
