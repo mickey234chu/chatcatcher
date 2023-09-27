@@ -42,6 +42,8 @@ namespace chatcatcher
         private Boolean isConnected = false;
         private String user;
         private String secret;
+        private String discordserver;
+        private String discordchannel;
         private String discordsecret;
         private String oathtoken;
         private String chatname;
@@ -104,24 +106,29 @@ namespace chatcatcher
                         }
                         //實例化使用工具
                         twitchTool = new TwitchTool();
-                        discordTool = new DiscordTool();
                         // 開啟聊天室抓取任務
                         // 初始化Twitch聊天室連接
                         AppendText("初始化聊天室連接" + Environment.NewLine);
                         Connect(user, secret, oathtoken, chatname);
                         chatTask = Task.Run(ReadChatMessages);
-
+                        //完成Twitch聊天室的連線
+                        /////////////////////////////////////////////////
 
                         // 創建 DiscordSocketClient 
-                        discordTool = new DiscordTool();
-                        await discordTool.StartBot(discordsecret);
+                        discordTool = new DiscordTool(this, discordserver, discordchannel); 
+                        //連接Discord Bot
+                        isConnected = await discordTool.StartBot(discordsecret);
+                        //根據結果進行Window上的修改
+                        if (isConnected)
+                        {
+                            btn.Text = "結束連結";
+                        }
+                        else
+                        {
+                            CloseTwitch();
+                        }
 
-                        //////////////////////////////////////////////////////////////////
                         
-                        
-                        
-                        isConnected = true;
-                        btn.Text = "結束連結";
                     }
                     catch (Exception)
                     {
@@ -133,21 +140,25 @@ namespace chatcatcher
             }
             else
             {
-                AppendText("停止連接" + Environment.NewLine);
-                
-                // 停止聊天室抓取任務
-                chatTask = null;
-
-                // 關閉聊天室連接
-                writer.WriteLine("QUIT");
-                writer.Flush();
-                client.Close();
-                
+                CloseTwitch();
+                discordTool.StopBot();
                 isConnected = false;
                 btn.Text = "開始連結";
             }
 
 
+        }
+        private void CloseTwitch()
+        {
+            AppendText("停止連接" + Environment.NewLine);
+
+            // 停止聊天室抓取任務
+            chatTask = null;
+
+            // 關閉聊天室連接
+            writer.WriteLine("QUIT");
+            writer.Flush();
+            client.Close();
         }
         private async Task<string> Oath2Authorize()
         {
@@ -259,6 +270,8 @@ namespace chatcatcher
             user = parameters.Username;
             secret = parameters.Secret;
             chatname = parameters.Chatroom;
+            discordserver = parameters.DiscordServerID;
+            discordchannel = parameters.DiscordChannelID;
             discordsecret = parameters.DiscordSecret;
  
 
@@ -302,6 +315,7 @@ namespace chatcatcher
                         if (message.Contains("PRIVMSG"))
                         {
                             ProcessChatMessage(message);
+                            
                         }
                         else
                         {
@@ -329,14 +343,19 @@ namespace chatcatcher
                 string content = string.Join(" ", parts.Skip(3).ToArray()).Substring(1);
                 // 在文本框中顯示聊天室内容
                 AppendText(username + ":" + content + Environment.NewLine);
-
+                // 將處理後的訊息傳遞給 Discord Bot
+                if (discordTool._isConnected)
+                {
+                    discordTool.SendMessageToDiscord(username, content);
+                }
+                
             }
             else
             {
                 AppendText(message + Environment.NewLine);
             }
         }
-        private void AppendText(string text)
+        public void AppendText(string text)
         {
             if (txtChat.InvokeRequired)
             {
