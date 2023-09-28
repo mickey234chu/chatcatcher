@@ -168,6 +168,7 @@ namespace chatcatcher
     {
         public string Username { get; set; }
         public string Secret { get; set; }
+        public string Oath2token { get; set; }
         public string Chatroom { get; set; }
 
         public string DiscordServerID { get; set; }
