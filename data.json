@@ -1,6 +1,7 @@
 {
   "Username": "Twitch機械人用戶端 ID",
   "Secret": "Twitch機械人用戶端密碼",
+  "Oath2token":"你的OAUTH2.0TOKEN",
   "Chatroom": "你要連接的Twitch實況主帳號",
   "DiscordServerID": "你的Discord Bot所在伺服器ID",
   "DiscordChannelID": "你的Discord Bot所在頻道ID(要在同一個伺服器下哦)",
