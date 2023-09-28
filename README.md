@@ -11,7 +11,7 @@
 {  
   "Username": "Twitch機械人用戶端 ID",  
   "Secret": "Twitch機械人用戶端密碼",  
-  "Oath2token":"你的OAUTH2.0TOKEN",  
+  "Oath2token":"你的OAUTH2.0TOKEN，可以使用Twitch Chat OAuth Password Generator生成，或是留空，程式會使用你當前瀏覽器的帳號要求授權，然後用當前瀏覽器的帳號來轉發Discord 訊息",  
   "Chatroom": "你要連接的Twitch實況主帳號",  
   "DiscordServerID": "你的Discord Bot所在伺服器ID",  
   "DiscordChannelID": "你的Discord Bot所在頻道ID(要在同一個伺服器下哦)",  
