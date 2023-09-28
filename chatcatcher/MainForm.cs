@@ -40,6 +40,7 @@ namespace chatcatcher
         private DiscordTool discordTool;
         private Task chatTask;
         private Boolean isConnected = false;
+        private Boolean haveOAUTH = false;
         private String user;
         private String secret;
         private String discordserver;
@@ -92,41 +93,53 @@ namespace chatcatcher
                     {
                         //Twitch 聊天室連線
                         AppendText("嘗試進行連接" + Environment.NewLine);
-                        //取得Token
-                        oathtoken = await Oath2Authorize();
-                        if (oathtoken == null)
+                        //如果沒有OAUTH2.0 Token,取得一個Token
+                        if (!haveOAUTH)
                         {
-                            AppendText("oathtoken 取得失敗" + Environment.NewLine);
+                            oathtoken = await Oath2Authorize();
+                            if (oathtoken == null || oathtoken.Length < 1)
+                            {
+                                AppendText("oathtoken 取得失敗" + Environment.NewLine);
+                            }
+                            else 
+                            {
+                                AppendText("你的新Oath token為:" + oathtoken + Environment.NewLine);
+                                AppendText("請不要告知他人你的token" + Environment.NewLine);
+                                AppendText("如你授權時並非使用你的機械人帳號授權，或使用了別人的帳號" + Environment.NewLine);
+                                AppendText("請您先把瀏覽器上的Twitch切換成你想要本程式使用的帳號" + Environment.NewLine);
+                                AppendText("然後再次點選開始連結" + Environment.NewLine);
+                                AppendText("否則，請把token存到原有參數檔中並保存，以後將可以使用該token連接聊天室" + Environment.NewLine);
+                                haveOAUTH = true;
+                            }
+                                
                         }
-                        else
+                        if(haveOAUTH)
                         {
-                            
-                              AppendText("token:" + oathtoken + Environment.NewLine);
-                            
-                        }
-                        //實例化使用工具
-                        twitchTool = new TwitchTool();
-                        // 開啟聊天室抓取任務
-                        // 初始化Twitch聊天室連接
-                        AppendText("初始化聊天室連接" + Environment.NewLine);
-                        Connect(user, secret, oathtoken, chatname);
-                        chatTask = Task.Run(ReadChatMessages);
-                        //完成Twitch聊天室的連線
-                        /////////////////////////////////////////////////
+                            //實例化使用工具
+                            twitchTool = new TwitchTool();
+                            // 開啟聊天室抓取任務
+                            // 初始化Twitch聊天室連接
+                            AppendText("初始化聊天室連接" + Environment.NewLine);
+                            Connect(user, oathtoken, chatname);
+                            chatTask = Task.Run(ReadChatMessages);
+                            //完成Twitch聊天室的連線
+                            /////////////////////////////////////////////////
 
-                        // 創建 DiscordSocketClient 
-                        discordTool = new DiscordTool(this, discordserver, discordchannel, user, chatname); 
-                        //連接Discord Bot
-                        isConnected = await discordTool.StartBot(discordsecret);
-                        //根據結果進行Window上的修改
-                        if (isConnected)
-                        {
-                            btn.Text = "結束連結";
+                            // 創建 DiscordSocketClient 
+                            discordTool = new DiscordTool(this, discordserver, discordchannel, user, chatname);
+                            //連接Discord Bot
+                            isConnected = await discordTool.StartBot(discordsecret);
+                            //根據結果進行Window上的修改
+                            if (isConnected)
+                            {
+                                btn.Text = "結束連結";
+                            }
+                            else
+                            {
+                                CloseTwitch();
+                            }
                         }
-                        else
-                        {
-                            CloseTwitch();
-                        }
+                        
 
                         
                     }
@@ -160,6 +173,7 @@ namespace chatcatcher
             writer.Flush();
             client.Close();
         }
+        
         private async Task<string> Oath2Authorize()
         {
 
@@ -240,6 +254,7 @@ namespace chatcatcher
                 return null;
             }
         }
+        
         private void btnOpenFile_Click(object sender, EventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
@@ -269,15 +284,19 @@ namespace chatcatcher
             // 更新當前要串的資料
             user = parameters.Username;
             secret = parameters.Secret;
+            oathtoken = parameters.Oath2token;
             chatname = parameters.Chatroom;
             discordserver = parameters.DiscordServerID;
             discordchannel = parameters.DiscordChannelID;
             discordsecret = parameters.DiscordSecret;
- 
+            if (oathtoken != null || oathtoken.Length > 0)
+            { 
+                haveOAUTH = true;
+            }
 
         }
         //無需要secret
-        public void Connect(string username,string secret, string accessToken, string channel)
+        public void Connect(string username, string accessToken, string channel)
         {
             client = new TcpClient(Host, Port);
             //reader = new StreamReader(client.GetStream(), Encoding.GetEncoding("iso-8859-1"));
